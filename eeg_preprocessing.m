@@ -14,7 +14,7 @@ subjects = {'sub1_eeg.vhdr','sub2_eeg.vhdr','sub3_eeg.vhdr','sub4_eeg.vhdr',...
             'sub21_eeg.vhdr','sub22_eeg.vhdr','sub23_eeg.vhdr','sub24_eeg.vhdr',...
             'sub25_eeg.vhdr','sub26_eeg.vhdr','sub27_eeg.vhdr','sub28_eeg.vhdr',...
             'sub29_eeg.vhdr','sub30_eeg.vhdr','sub31_eeg.vhdr','sub32_eeg.vhdr',...
-            'sub33_eeg.vhdr','sub34_eeg.vhdr','sub35_eeg.vhdr','sub36_eeg.vhdr',...
+            'sub33_eeg.vhdr','sub34_eeg.vhdr','sub_35.vhdr','sub36_eeg.vhdr',...
             'sub37.vhdr','sub38_eeg.vhdr','sub39_eeg.vhdr','sub40_eeg.vhdr'};
         
 subjectFolder = {'sub1','sub2','sub3','sub4',...
@@ -46,6 +46,9 @@ for a = 1:length(subjects)
 
     cfg                 = [];
     cfg.channel         = [1:60 65]; % keep channels 1 to 61 and the newly inserted M1 channel
+    cfg.lpfilter        = 'yes';
+    cfg.lpfreq          = 150;
+    cfg.dftfilter       = 'yes';
     data_eeg{a}         = ft_preprocessing(cfg, data_eeg{a});
     
     disp(strcat('***   Re-reference: sub', int2str(a), '/', int2str(length(subjects)), '   ***'))
@@ -68,6 +71,8 @@ for b = 1:length(subjects)
 
     cfg                 = [];
     cfg.channel         = 'EOGH';
+    cfg.lpfilter        = 'no';
+    cfg.dftfilter       = 'no';
     data_eogh{b}        = ft_preprocessing(cfg, data_eogh{b});
 
     cfg                 = [];
@@ -81,6 +86,8 @@ for b = 1:length(subjects)
 
     cfg                 = [];
     cfg.channel         = 'EOGV';
+    cfg.lpfilter        = 'no';
+    cfg.dftfilter       = 'no';
     data_eogv{b}        = ft_preprocessing(cfg, data_eogv{b});
     
     disp(strcat('***   Define EOG: sub', int2str(b), '/', int2str(length(subjects)), '   ***'))
@@ -118,24 +125,18 @@ for d = 1:length(subjects)
     cfg                     = [];
     cfg.dataset             = fullfile(subDirs, subjects{d});
     cfg.trialdef.eventtype  = 'Stimulus';
-    cfg.trialdef.eventvalue = {'S  7'  'S  8'  'S  9'}; %trigger codes congruent
-    cfg.trialdef.prestim    = 1.5; % take 1500ms before stimulus onset
-    cfg.trialdef.poststim   = 1.5; % take 1500ms after stimulus onset
-    cfg_congr               = ft_definetrial(cfg); 
+    cfg.trialdef.eventvalue = {'S  7'  'S  8'  'S  9' 'S 27'  'S 28'  'S 29'}; %trigger codes congruent
+    cfg.trialdef.prestim    = 2.0; % take 1500ms before stimulus onset
+    cfg.trialdef.poststim   = 2.0; % take 1500ms after stimulus onset
+    cfg                     = ft_definetrial(cfg); 
 
-    cfg.trialdef.eventvalue = {'S 27'  'S 28'  'S 29'}; %trigger codes incongruent
-    cfg_inc                 = ft_definetrial(cfg); 
-
-    data_congr              = ft_redefinetrial(cfg_congr, data_all{d});
-    data_inc                = ft_redefinetrial(cfg_inc, data_all{d});
+    data_preproc            = ft_redefinetrial(cfg, data_all{d});
     
     mkdir(fullfile(outFiles, subjectFolder{d}))
-    disp('Saving congr...')
-    save(fullfile(outFiles, subjectFolder{d}, 'preproc_congr.mat'), 'data_congr')
-    disp('Saving inc...')
-    save(fullfile(outFiles, subjectFolder{d}, 'preproc_inc.mat'), 'data_inc')
+    disp('Saving data...')
+    save(fullfile(outFiles, subjectFolder{d}, 'data_preproc.mat'), 'data_preproc')
     
-    clear data_congr data_inc cfg_congr cfg_inc
+    clear data_preproc cfg
     
     disp(strcat('***   Define Trial: sub', int2str(d), '/', int2str(length(subjects)), '   ***'))
     
