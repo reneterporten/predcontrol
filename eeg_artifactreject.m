@@ -113,50 +113,7 @@ for b = 1:length(subjectFolder)
 
 end
 
-%% Repairing channels
-% ------------------------ This section returns:
-%There are 0 bad channels
-%There are 1 missing channels
-%no bad channels to repair
-%Interpolated missing channels will be concatenated.
-%trying to reconstruct missing channel 3
-%	cannot reconstruct channel - no neighbours in the original data or in the sensor position
-% ------------------------ Maybe wrong elecfile?
 
-for rep = 1:length(subjectFolder)
-    
-    load(fullfile(outFiles, subjectFolder{rep}, 'data_rough.mat'))
-    
-    cfg_prepNeighbours          = [];
-    cfg_prepNeighbours.layout   = 'mpi_customized_acticap64.mat'; %reads in 64 channel layout but notices only 32 are present
-    cfg_prepNeighbours.template = 'mpi_59_neighb.mat';
-    cfg_prepNeighbours.method   = 'triangulation';
-    cfg_prepNeighbours.feedback = 'yes'; %change to 'yes' if you want to verify your layout is correct!
-    
-    neighbours                  = ft_prepare_neighbours(cfg_prepNeighbours, data_rough);
-    
-    cfg = [];
-    if strcmp(subjectFolder{rep}, 'sub8')
-        cfg.missingchannel = {'3'};
-    elseif strcmp(subjectFolder{rep}, 'sub11')
-        cfg.missingchannel = {'6'};
-    elseif strcmp(subjectFolder{rep}, 'sub30')
-        cfg.missingchannel = {'11'};
-    else
-        cfg.missingchannel = {};
-    end
-    
-    cfg.method         = 'average';
-    cfg.neighbours     = neighbours;
-    cfg.elecfile       = 'standard_1020.elc';
-    data_rep           = ft_channelrepair(cfg, data_rough);
-    
-    disp('Saving...')
-    save(fullfile(outFiles, subjectFolder{rep}, 'data_rep.mat'), 'data_rep')
-    
-    disp(strcat('***   Comp Rejection: sub', int2str(rep), '/', int2str(length(subjectFolder)), '   ***'))
-
-end
 
 
 %% ICA - Identifying and saving components that relate to eye-heart artifacts
@@ -221,7 +178,49 @@ for rej = 1:length(subjectFolder)
 
 end
 
+%% Repairing channels
+% For subjects: 8, 11, 30; channel: 3, 6, 11 respectively
 
+for rep = 1:length(subjectFolder)
+    
+    load(fullfile(outFiles, subjectFolder{rep}, 'data_rough.mat'))
+    %load('/home/renter/EEG Analysis/fieldtrip-20181209/fieldtrip-20181209/template/layout/mpi_customized_acticap64.mat')
+    
+    %data_rough.pos = lay.pos;
+    
+    cfg_prepNeighbours          = [];
+    cfg_prepNeighbours.layout   = 'mpi_customized_acticap64.mat'; %reads in 64 channel layout but notices only 32 are present
+    cfg_prepNeighbours.template = 'mpi_59_neighb.mat';
+    cfg_prepNeighbours.method   = 'triangulation';
+    cfg_prepNeighbours.feedback = 'yes'; %change to 'yes' if you want to verify your layout is correct!
+    
+    neighbours                  = ft_prepare_neighbours(cfg_prepNeighbours, data_rough);
+
+    cfg = [];
+    if strcmp(subjectFolder{rep}, 'sub8')
+        cfg.missingchannel = {'3'};
+    elseif strcmp(subjectFolder{rep}, 'sub11')
+        cfg.missingchannel = {'6'};
+    elseif strcmp(subjectFolder{rep}, 'sub30')
+        cfg.missingchannel = {'11'};
+    else
+        cfg.missingchannel = {};
+    end
+    
+    
+    cfg.method         = 'average';
+    cfg.neighbours     = neighbours;
+    %cfg.layout = 'mpi_customized_acticap64.mat';
+    cfg.elecfile = 'customMPI_elec.txt';
+
+    data_rep           = ft_channelrepair(cfg, data_rough);
+    
+    disp('Saving...')
+    save(fullfile(outFiles, subjectFolder{rep}, 'data_rep.mat'), 'data_rep')
+    
+    disp(strcat('***   Comp Rejection: sub', int2str(rep), '/', int2str(length(subjectFolder)), '   ***'))
+
+end
 
 %% Trial based artifact rejection by visual inspection
 
