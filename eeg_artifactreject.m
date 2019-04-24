@@ -114,8 +114,6 @@ for b = 1:length(subjectFolder)
 end
 
 
-
-
 %% ICA - Identifying and saving components that relate to eye-heart artifacts
 
 for sub = 1:length(subjectFolder)
@@ -156,21 +154,15 @@ for rej = 1:length(subjectFolder)
     load(fullfile(outFiles, subjectFolder{rej}, 'data_rough.mat'))
     load(fullfile(outFiles, subjectFolder{rej}, 'comp.mat'))
     load(fullfile(outFiles, subjectFolder{rej}, 'ind_comp.mat'))
-    
-    % Select only good data
-    
-    cfg             = [];
-    cfg.channel     = rt_channelselect(subjectFolder, rej);
-    data_rough_sel  = ft_selectdata(cfg, data_rough);
 
     cfg             = [];
     cfg.keepchannel = 'yes';
     cfg.keeptrials  = 'yes';
     cfg.component   = ind_comp;
-    data_ica        = ft_rejectcomponent(cfg, comp, data_rough_sel);
+    data_ica        = ft_rejectcomponent(cfg, comp, data_rough);
     
     disp('Saving...')
-    save(fullfile(outFiles, subjectFolder{sub}, 'data_ica.mat'), 'data_ica')
+    save(fullfile(outFiles, subjectFolder{rej}, 'data_ica.mat'), 'data_ica')
     
     disp(strcat('***   Comp Rejection: sub', int2str(rej), '/', int2str(length(subjectFolder)), '   ***'))
   
@@ -183,7 +175,7 @@ end
 
 for rep = 1:length(subjectFolder)
     
-    load(fullfile(outFiles, subjectFolder{rep}, 'data_rough.mat'))
+    load(fullfile(outFiles, subjectFolder{rep}, 'data_ica.mat'))
     %load('/home/renter/EEG Analysis/fieldtrip-20181209/fieldtrip-20181209/template/layout/mpi_customized_acticap64.mat')
     
     %data_rough.pos = lay.pos;
@@ -194,17 +186,17 @@ for rep = 1:length(subjectFolder)
     cfg_prepNeighbours.method   = 'triangulation';
     cfg_prepNeighbours.feedback = 'yes'; %change to 'yes' if you want to verify your layout is correct!
     
-    neighbours                  = ft_prepare_neighbours(cfg_prepNeighbours, data_rough);
+    neighbours                  = ft_prepare_neighbours(cfg_prepNeighbours, data_ica);
 
     cfg = [];
     if strcmp(subjectFolder{rep}, 'sub8')
-        cfg.missingchannel = {'3'};
+        cfg.badchannel = {'3'};
     elseif strcmp(subjectFolder{rep}, 'sub11')
-        cfg.missingchannel = {'6'};
+        cfg.badchannel = {'6'};
     elseif strcmp(subjectFolder{rep}, 'sub30')
-        cfg.missingchannel = {'11'};
+        cfg.badchannel = {'11'};
     else
-        cfg.missingchannel = {};
+        cfg.badchannel = {};
     end
     
     
@@ -213,30 +205,74 @@ for rep = 1:length(subjectFolder)
     %cfg.layout = 'mpi_customized_acticap64.mat';
     cfg.elecfile = 'customMPI_elec.txt';
 
-    data_rep           = ft_channelrepair(cfg, data_rough);
+    data_rep           = ft_channelrepair(cfg, data_ica);
     
     disp('Saving...')
     save(fullfile(outFiles, subjectFolder{rep}, 'data_rep.mat'), 'data_rep')
     
-    disp(strcat('***   Comp Rejection: sub', int2str(rep), '/', int2str(length(subjectFolder)), '   ***'))
+    disp(strcat('***   Channel repair: sub', int2str(rep), '/', int2str(length(subjectFolder)), '   ***'))
 
+    keep rep outFiles subjectFolder listCongruency
+    
 end
 
-%% Trial based artifact rejection by visual inspection
+close all
+
+%% Trial based rough artifact rejection by visual inspection
 
 for trrej = 1:length(subjectFolder)
     
     load(fullfile(outFiles, subjectFolder{trrej}, 'data_rep.mat'))
     
+    % Only do rough rejection on critical time window
     cfg                 = [];
-    cfg.method          = 'trial';
+    cfg.method          = 'summary';
     cfg.layout          = 'mpi_customized_acticap64.mat';
-    data_clean          = ft_rejectvisual(cfg,data_ica);
+    cfg.latency         = [-1.0 1.0];
+    cfg.keeptrial       = 'nan';
+    data_rough          = ft_rejectvisual(cfg,data_rep);
+    
+    % Reject previous identified artifacts from whole segment of data
+    cfg                             = [];
+    cfg.artfctdef.visual.artifact   = data_rough.cfg.artfctdef.summary.artifact;
+    cfg.artfctdef.reject            = 'complete';
+    data_roughclean                 = ft_rejectartifact(cfg, data_rep);
     
     disp('Saving...')
-    save(fullfile(outFiles, subjectFolder{trrej}, 'data_clean.mat'), 'data_clean')
+    save(fullfile(outFiles, subjectFolder{trrej}, 'data_roughclean.mat'), 'data_roughclean')
     
-    disp(strcat('***   Comp Rejection: sub', int2str(trrej), '/', int2str(length(subjectFolder)), '   ***'))
+    disp(strcat('***   Artifact Rejection: sub', int2str(trrej), '/', int2str(length(subjectFolder)), '   ***'))
 
     keep trrej outFiles subjectFolder listCongruency
+    
+end
+
+
+%% Per trial thorough artifact rejection
+% Subject 8 remains noisy after artifact rejection. Subject 8 will get
+% excluded from further analyses.
+
+for clea = 1:length(subjectFolder)
+    
+    load(fullfile(outFiles, subjectFolder{clea}, 'data_roughclean.mat'))
+
+    cfg             = [];
+    cfg.channel     = 'all';
+    cfg.viewmode    = 'vertical';
+    cfg.xlim        = [-1.0 1.0];
+    cfg.position    = [0 0 1400 1050];
+    artf            = ft_databrowser(cfg,data_roughclean);
+
+    cfg                             = [];
+    cfg.artfctdef.visual.artifact   = artf.artfctdef.visual.artifact;
+    cfg.artfctdef.reject            = 'complete';
+    data_clean                      = ft_rejectartifact(cfg, data_roughclean);
+    
+    disp('Saving...')
+    save(fullfile(outFiles, subjectFolder{clea}, 'data_clean.mat'), 'data_clean')
+    
+    disp(strcat('***   Final Data Cleaning: sub', int2str(clea), '/', int2str(length(subjectFolder)), '   ***'))
+
+    keep clea outFiles subjectFolder listCongruency
+    
 end
