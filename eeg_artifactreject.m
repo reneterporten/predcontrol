@@ -21,9 +21,6 @@ subjectFolder = {'sub1','sub2','sub3','sub4',...
             
 outFiles = '/home/renter/EEG Analysis/Results/';
 
-
-%% Check the validity of the data: are all lists included?
-
 % Postition of letter in list corresponds to subject
 % Inc lists:    A, C, E -> a
 % Congr lists:  B, D, F -> b
@@ -31,7 +28,10 @@ outFiles = '/home/renter/EEG Analysis/Results/';
 listCongruency = {'b' 'b' 'a' 'a' 'a' 'b' 'b' 'b' 'b' 'a' 'a' 'b' 'b' 'b'...
                 'a' 'b' 'a' 'a' 'b' 'a' 'a' 'b' 'b' 'a' 'a' 'b' 'b'...
                 'b' 'b' 'a' 'a' 'a' 'b' 'a' 'a' 'a' 'a' 'b' 'b'};
-            
+
+
+%% Check the validity of the data: are all lists included?
+
 % If list == a then there should be more inc. items
 % If list == b then there should be more congr. items
 
@@ -86,28 +86,69 @@ end
 %% Starting artifact rejection procedure
 % Summary method first to terminate spike artifacts
 
+
 for b = 1:length(subjectFolder)
     
     disp('Loading data...')
     load(fullfile(outFiles, subjectFolder{b}, 'data_preproc.mat'))
     
-    % Counting trials before rejections
-    trials          = length(data_preproc.trialinfo);
-    
     cfg             = [];
     cfg.method      = 'summary';
+    cfg.latency     = [-2.5 2.5]; % Only consider relevant time windows for rejection
     cfg.layout      = 'mpi_customized_acticap64.mat';
-    data_rough      = ft_rejectvisual(cfg,data_preproc);
+    data_roughsel   = ft_rejectvisual(cfg,data_preproc);
+
+    % Reject previous identified artifacts from whole segment of data
+    cfg                             = [];
+    cfg.artfctdef.visual.artifact   = data_roughsel.cfg.artfctdef.summary.artifact;
+    cfg.artfctdef.reject            = 'complete';
+    data_rough                      = ft_rejectartifact(cfg, data_preproc);
     
-    % Counting rejected trials
-    trials_rej      = trials - length(data_rough.trial);
+    % First find all the trials that were rejected from the original data
+    indTrials = find(ismember(data_preproc.trialinfo(:,1), data_rough.trialinfo(:,1)) == 0);
+    rejTrials = data_preproc.trialinfo(indTrials);
+    
+    % Select all the baseline and critical trials that were rejected
+    % seperately
+    baseTrials = rejTrials(ismember(rejTrials(:), [1:10:2031]) == 1);
+    critTrials = rejTrials(ismember(rejTrials(:), [1:10:2031]) == 0);
+    
+    % Adjust the index of crit and base rejected trials, such that for
+    % every rejected baseline, the corresponding critical trial is rejected
+    % and vice versa
+    if isempty(baseTrials) == 0
+        base_to_crit_trials_indx    = find(ismember(data_preproc.trialinfo(:,1), baseTrials) == 1);
+        base_to_crit_trials_indx    = base_to_crit_trials_indx  + 1;
+    else
+        base_to_crit_trials_indx    = [];
+    end
+    
+    if isempty(critTrials) == 0
+        crit_to_base_trials_indx    = find(ismember(data_preproc.trialinfo(:,1), critTrials) == 1);
+        crit_to_base_trials_indx    = crit_to_base_trials_indx  - 1;
+    else
+        crit_to_base_trials_indx    = [];
+    end
+    
+    % Combine the base and crit trials, take only unique values to exclude
+    % redundancy
+    all_rej_trials = [data_preproc.trialinfo(base_to_crit_trials_indx); data_preproc.trialinfo(crit_to_base_trials_indx)];
+    all_rej_trials = unique(all_rej_trials);
+    
+    % If there are any rejected trails, select only the data that does not
+    % include them.
+    if isempty(all_rej_trials) == 0
+        cfg         = [];
+        cfg.trials  = find(ismember(data_rough.trialinfo(:,1), all_rej_trials) == 0);
+        data_rough  = ft_selectdata(cfg, data_rough);
+    end
     
     disp('Saving data...')
     save(fullfile(outFiles, subjectFolder{b}, 'data_rough.mat'), 'data_rough')
     disp('Saving trials rejected...')
     save(fullfile(outFiles, subjectFolder{b}, 'trials_rejected.mat'), 'trials_rej')
     
-    clear data_rough trials_rej
+    keep b listCongruency outFiles subjectFolder
     
     disp(strcat('***   Rough Rejection: sub', int2str(b), '/', int2str(length(subjectFolder)), '   ***'))
 
@@ -228,8 +269,7 @@ for trrej = 1:length(subjectFolder)
     cfg                 = [];
     cfg.method          = 'summary';
     cfg.layout          = 'mpi_customized_acticap64.mat';
-    cfg.latency         = [-1.0 1.0];
-    cfg.keeptrial       = 'nan';
+    cfg.latency         = [-2.0 1.0];
     data_rough          = ft_rejectvisual(cfg,data_rep);
     
     % Reject previous identified artifacts from whole segment of data
@@ -249,7 +289,7 @@ end
 
 
 %% Per trial thorough artifact rejection
-% Subject 8 remains noisy after artifact rejection. Subject 8 will get
+% Subject 7 remains noisy after artifact rejection. Subject 7 will get
 % excluded from further analyses.
 
 for clea = 1:length(subjectFolder)
@@ -259,7 +299,7 @@ for clea = 1:length(subjectFolder)
     cfg             = [];
     cfg.channel     = 'all';
     cfg.viewmode    = 'vertical';
-    cfg.xlim        = [-1.0 1.0];
+    cfg.xlim        = [-2.0 1.0];
     cfg.position    = [0 0 1400 1050];
     artf            = ft_databrowser(cfg,data_roughclean);
 

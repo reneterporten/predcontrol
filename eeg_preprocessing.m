@@ -46,9 +46,13 @@ for a = 1:length(subjects)
 
     cfg                 = [];
     cfg.channel         = [1:60 65]; % keep channels 1 to 61 and the newly inserted M1 channel
+    cfg.hpfilter        = 'yes';
+    cfg.hpfreq          = 0.1;
+    cfg.hpfilttype      = 'firws';
+    cfg.hpfiltdir       = 'onepass-zerophase';
+    cfg.dftfilter       = 'yes';
     cfg.lpfilter        = 'yes';
     cfg.lpfreq          = 150;
-    cfg.dftfilter       = 'yes';
     data_eeg{a}         = ft_preprocessing(cfg, data_eeg{a});
     
     disp(strcat('***   Re-reference: sub', int2str(a), '/', int2str(length(subjects)), '   ***'))
@@ -122,21 +126,141 @@ keep data_all subDirs subjects subjectFolder outFiles
 
 for d = 1:length(subjects)
     
+    % Select critical window
     cfg                     = [];
     cfg.dataset             = fullfile(subDirs, subjects{d});
     cfg.trialdef.eventtype  = 'Stimulus';
-    cfg.trialdef.eventvalue = {'S  7'  'S  8'  'S  9' 'S 27'  'S 28'  'S 29'}; %trigger codes congruent
-    cfg.trialdef.prestim    = 2.0; % take 1500ms before stimulus onset
-    cfg.trialdef.poststim   = 2.0; % take 1500ms after stimulus onset
-    cfg                     = ft_definetrial(cfg); 
+    cfg.trialdef.eventvalue = {'S  1' 'S  7'  'S  8' 'S  9' 'S 27' 'S 28' 'S 29'}; %trigger codes congruent
+    cfg.trialdef.prestim    = 2.5; % take 1000ms before stimulus onset
+    cfg.trialdef.poststim   = 2.5; % take 2000ms after stimulus onset
+    cfg                     = ft_definetrial(cfg);
 
     data_preproc            = ft_redefinetrial(cfg, data_all{d});
+    
+    % Redefine trial identity which allows identification of trial position
+    countTR = 1;
+    for trname = 1:2:length(data_preproc.trialinfo)
+        
+        new_basename                        = strcat(num2str(countTR), '1');
+        
+        critname                            = num2str(data_preproc.trialinfo(trname+1));
+        new_critname                        = strcat(num2str(countTR), critname);
+        
+        data_preproc.trialinfo(trname + 1)  = str2double(new_critname);
+        data_preproc.trialinfo(trname)      = str2double(new_basename);
+        
+        countTR = countTR + 1;
+      
+    end
     
     mkdir(fullfile(outFiles, subjectFolder{d}))
     disp('Saving data...')
     save(fullfile(outFiles, subjectFolder{d}, 'data_preproc.mat'), 'data_preproc')
     
-    clear data_preproc cfg
+    clear data_preproc cfg data_time data_concat time_struc trial_struc
+    
+    disp(strcat('***   Define Trial: sub', int2str(d), '/', int2str(length(subjects)), '   ***'))
+    
+end
+
+
+% *********************************************************************** %
+%                                                                         %
+% *********************************************************************** %
+%% Define congruency trials, save data per subject
+% Combine baseline and critical epochs into one.
+
+for d = 1:length(subjects)
+    
+    % Select critical window
+    cfg                     = [];
+    cfg.dataset             = fullfile(subDirs, subjects{d});
+    cfg.trialdef.eventtype  = 'Stimulus';
+    cfg.trialdef.eventvalue = {'S  7'  'S  8' 'S  9' 'S 27' 'S 28' 'S 29'}; %trigger codes congruent
+    cfg.trialdef.prestim    = 2.5; % take 1000ms before stimulus onset
+    cfg.trialdef.poststim   = 2.0; % take 2000ms after stimulus onset
+    cfg_crit                = ft_definetrial(cfg);
+    
+    % Select baseline
+    cfg.trialdef.eventvalue = {'S  1'};
+    cfg.trialdef.prestim    = 1.0; % take 1000ms before stimulus onset
+    cfg.trialdef.poststim   = 2.5; % take 1000ms after stimulus onset
+    cfg_base                = ft_definetrial(cfg);
+    
+    data_crit               = ft_redefinetrial(cfg_crit, data_all{d});
+    data_base               = ft_redefinetrial(cfg_base, data_all{d});
+    
+    % Redefine trial identity which allows identification of trial position
+    for trname = 1:length(data_base.trialinfo)
+        
+        critname = num2str(data_crit.trialinfo(trname));
+        
+        new_critname = strcat(num2str(trname), critname);
+        
+        data_crit.trialinfo(trname) = str2double(new_critname);
+      
+    end
+    
+    % Manually append data such that each trial includes a baseline period
+    % Prepare data time structure that holds baseline and critical
+    % time-lines
+    data_time   = zeros(1, length(data_crit.time{1}) + length(data_base.time{1}));
+    
+    time_begin  = data_base.time{1}(1) + data_crit.time{1}(1) - cfg.trialdef.poststim;
+    time_end    = data_crit.time{1}(length(data_crit.time{1}));
+    time_step   = data_base.time{1}(2) - data_base.time{1}(1);
+    
+    data_time(1, :) = [time_begin:time_step:time_end + time_step];
+    
+    % Sort trial data based on new structure
+    for trl = 1:length(data_crit.trial)
+        
+        data_concat = zeros(length(data_crit.label), length(data_time));
+        data_concat(:, 1:length(data_base.time{trl}))       = data_base.trial{trl};
+        data_concat(:, (length(data_base.time{trl})+1):end) = data_crit.trial{trl};
+        
+        time_struc{1, trl}  = data_time;
+        trial_struc{1, trl} = data_concat;
+        
+    end
+    
+    % Calculate how many samples have been taken in total
+    base_sample = (data_base.sampleinfo(1,2)-data_base.sampleinfo(1,1));
+    crit_sample = (data_crit.sampleinfo(1,2)-data_crit.sampleinfo(1,1));
+    total_sample = base_sample + crit_sample;
+    
+    % Create new sample info structure that matches length of new epoch
+    my_sampleinfo = ones(length(data_crit.sampleinfo), 2);
+    for sam = 1:length(data_crit.sampleinfo)
+        if sam == 1
+            my_sampleinfo(sam, 2) = my_sampleinfo(sam, 1) + total_sample;
+        else
+            my_sampleinfo(sam, 1) = my_sampleinfo(sam - 1, 2) + 500;
+            my_sampleinfo(sam, 2) = my_sampleinfo(sam, 1) + total_sample;
+        end
+    end
+    
+    % Apply new time and trial data to preprocessed structure
+    % New structure now has a baseline period: -3.0s to -1.0s
+    % New structure now has a critical period: -1.0s to 2.0s
+    data_preproc            = data_crit;
+    data_preproc.trial      = trial_struc;
+    data_preproc.time       = time_struc;
+    data_preproc.sampleinfo = my_sampleinfo;
+    trl2                    = data_preproc.cfg.trl(:, 3:end);
+    data_preproc.cfg.trl    = [my_sampleinfo, trl2];
+    data_preproc.cfg.trialdef.prestim = 6.0;
+    
+    cfg = [];
+     cfg.eventtype   = {'Stimulus'};
+   cfg.eventvalue  = {'S  7'  'S  8' 'S  9' 'S 27' 'S 28' 'S 29'};
+    testnew= ft_recodeevent(cfg, data_preproc);
+    
+    mkdir(fullfile(outFiles, subjectFolder{d}))
+    disp('Saving data...')
+    save(fullfile(outFiles, subjectFolder{d}, 'data_preproc.mat'), 'data_preproc')
+    
+    clear data_preproc cfg data_time data_concat time_struc trial_struc
     
     disp(strcat('***   Define Trial: sub', int2str(d), '/', int2str(length(subjects)), '   ***'))
     

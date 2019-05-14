@@ -7,9 +7,8 @@ ft_defaults
 
 %% Add default path to pre-processed EEG data
 
-% Subject 8 & 25 is excluded
 subjectFolder = {'sub1','sub2','sub3','sub4',...
-                'sub5','sub6','sub7',...
+                'sub5','sub6','sub8',...
                 'sub9','sub10','sub11','sub12',...
                 'sub13','sub14','sub15','sub16',...
                 'sub17','sub18','sub19','sub20',...
@@ -44,7 +43,7 @@ for freq = 1:length(subjectFolder)
     cfg.method      = 'mtmconvol';
     cfg.taper       = 'hanning';
     cfg.foi         = [2:2:40];
-    cfg.toi         = [-1.0 : 0.01 : 1.0];
+    cfg.toi         = [-2.0 : 0.05 : 2.0];
     cfg.t_ftimwin   = ones(length(cfg.foi),1).*0.5;
     cfg.keeptrials  = 'yes';
 
@@ -179,19 +178,69 @@ conList_freq_HvsL_avg   = ft_freqgrandaverage(cfg, conList_freq_HvsL{:});
 conList_freq_HvsM_avg   = ft_freqgrandaverage(cfg, conList_freq_HvsM{:});
 conList_freq_MvsL_avg   = ft_freqgrandaverage(cfg, conList_freq_MvsL{:});
 
+conList_freq_high_avg = ft_freqgrandaverage(cfg, conList_freq_high{:});
+conList_freq_med_avg = ft_freqgrandaverage(cfg, conList_freq_med{:});
+conList_freq_low_avg = ft_freqgrandaverage(cfg, conList_freq_low{:});
+
+incList_freq_high_avg = ft_freqgrandaverage(cfg, incList_freq_high{:});
+incList_freq_med_avg = ft_freqgrandaverage(cfg, incList_freq_med{:});
+incList_freq_low_avg = ft_freqgrandaverage(cfg, incList_freq_low{:});
+
 
 %% Plot results
 
 % Multiplot TFR
 cfg         = [];
-%cfg.xlim    = [-0.8 1.0];
+cfg.xlim    = [-1.0 1.0];
 %cfg.ylim    = [2 30];
 cfg.layout  = 'mpi_customized_acticap64.mat';
-figure; ft_multiplotTFR(cfg,inconList_freq_HvsL_avg );
+figure; ft_multiplotTFR(cfg,conList_freq_MvsL_avg );
 
 % Single Topoplot
 cfg         = [];
 cfg.xlim    = [-0.5 0];
 cfg.ylim    = [8 12];
 cfg.layout  = 'mpi_customized_acticap64.mat';
-figure; ft_topoplotTFR(cfg,conList_freq_HvsM_avg); colorbar
+figure; ft_topoplotTFR(cfg,conList_freq_MvsL_avg); colorbar
+ft_hastoolbox('brewermap', 1);
+colormap(brewermap(64, 'RdBu'))
+
+
+%% Plot power over time
+
+cfg = [];
+cfg.channel = 'all';
+%cfg.avgoverchan = 'yes';
+cfg.avgoverfreq = 'yes';
+cfg.avgovertime = 'no';
+cfg.frequency = [8 12];
+cfg.latency = [-1.0 1.0];
+
+alpha_conList_high = ft_selectdata(cfg, conList_freq_high_avg);
+alpha_conList_med = ft_selectdata(cfg, conList_freq_med_avg);
+alpha_conList_low = ft_selectdata(cfg, conList_freq_low_avg);
+
+alpha_conList_HvsL = ft_selectdata(cfg, conList_freq_HvsL_avg);
+alpha_conList_MvsL = ft_selectdata(cfg, conList_freq_MvsL_avg);
+alpha_conList_HvsM = ft_selectdata(cfg, conList_freq_HvsM_avg);
+
+alpha_incList_high = ft_selectdata(cfg, incList_freq_high_avg);
+alpha_incList_med = ft_selectdata(cfg, incList_freq_med_avg);
+alpha_incList_low = ft_selectdata(cfg, incList_freq_low_avg);
+
+cfg = [];
+cfg.baseline = [-1.2 -.800];
+cfg.baselinetype = 'relchange';
+cfg.parameter = 'powspctrm';
+alpha_conList_high_base = ft_freqbaseline(cfg, alpha_conList_high);
+alpha_conList_med_base = ft_freqbaseline(cfg, alpha_conList_med);
+alpha_conList_low_base = ft_freqbaseline(cfg, alpha_conList_low);
+
+cfg = [];
+cfg.parameter = 'powspctrm';
+cfg.xlim = [-1.0 1.0];
+cfg.layout  = 'mpi_customized_acticap64.mat';
+%ft_singleplotER(cfg, alpha_power_high, alpha_power_med, alpha_power_low)
+ft_multiplotER(cfg, alpha_conList_high_base, alpha_conList_med_base, alpha_conList_low_base);
+%ft_multiplotER(cfg, conList_freq_HvsL_avg , conList_freq_HvsM_avg , conList_freq_MvsL_avg );
+

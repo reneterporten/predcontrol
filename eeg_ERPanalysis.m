@@ -9,7 +9,7 @@ ft_defaults
 
 % Subject 8 & 25 is excluded
 subjectFolder = {'sub1','sub2','sub3','sub4',...
-                'sub5','sub6','sub7',...
+                'sub5','sub6','sub8',...
                 'sub9','sub10','sub11','sub12',...
                 'sub13','sub14','sub15','sub16',...
                 'sub17','sub18','sub19','sub20',...
@@ -20,6 +20,14 @@ subjectFolder = {'sub1','sub2','sub3','sub4',...
                 'sub37','sub38','sub39','sub40'};
             
 outFiles = '/home/renter/EEG Analysis/Results/';
+
+% Postition of letter in list corresponds to subject
+% Inc lists:    A, C, E -> a
+% Congr lists:  B, D, F -> b
+
+listCongruency = {'b' 'b' 'a' 'a' 'a' 'b' 'b' 'b' 'a' 'a' 'b' 'b' 'b'...
+                'a' 'b' 'a' 'a' 'b' 'a' 'a' 'b' 'b' 'a' 'a' 'b' 'b'...
+                'b' 'b' 'a' 'a' 'a' 'b' 'a' 'a' 'a' 'a' 'b' 'b'};
 
 
 %% Calculate Event-Related Potentials - Irrespective of Task Statistics
@@ -94,20 +102,12 @@ for erp = 1:length(subjectFolder)
     
     disp(strcat('***   ERP timelock: sub', int2str(erp), '/', int2str(length(subjectFolder)), '   ***'))
     
-    keep erp outFiles subjectFolder
+    keep erp outFiles subjectFolder listCongruency
     
 end
 
 
 %% Calculate Event-Related Potentials - Per Task Statistik Group
-
-% Postition of letter in list corresponds to subject
-% Inc lists:    A, C, E -> a
-% Congr lists:  B, D, F -> b
-
-listCongruency = {'b' 'b' 'a' 'a' 'a' 'b' 'b' 'b' 'a' 'a' 'b' 'b' 'b'...
-                'a' 'b' 'a' 'a' 'b' 'a' 'a' 'b' 'b' 'a' 'a' 'b' 'b'...
-                'b' 'b' 'a' 'a' 'a' 'b' 'a' 'a' 'a' 'a' 'b' 'b'};
 
 for erp = 1:length(subjectFolder)
     
@@ -212,7 +212,7 @@ for loading = 1:length(subjectFolder)
     all_ERP_congr{loading}      = ERP_congr;
     all_ERP_incongr{loading}    = ERP_incongr;
     
-    keep loading outFiles subjectFolder all_ERP_congr all_ERP_incongr
+    keep loading outFiles subjectFolder all_ERP_congr all_ERP_incongr listCongruency
         
     disp(strcat('***   Loaded: sub', int2str(loading), '/', int2str(length(subjectFolder)), '   ***'))
     
@@ -239,7 +239,7 @@ for loadcon = 1:length(subjectFolder)
     all_ERP_congr_med{loadcon}      = ERP_congr_med;
     all_ERP_congr_low{loadcon}      = ERP_congr_low;
 
-    keep loadcon outFiles subjectFolder all_ERP_congr_high all_ERP_congr_med all_ERP_congr_low
+    keep loadcon outFiles subjectFolder listCongruency all_ERP_congr_high all_ERP_congr_med all_ERP_congr_low
         
     disp(strcat('***   Loaded: sub', int2str(loadcon), '/', int2str(length(subjectFolder)), '   ***'))
     
@@ -267,7 +267,7 @@ for loadincon = 1:length(subjectFolder)
     all_ERP_incongr_med{loadincon}      = ERP_incongr_med;
     all_ERP_incongr_low{loadincon}      = ERP_incongr_low;
 
-    keep loadincon outFiles subjectFolder all_ERP_incongr_high all_ERP_incongr_med all_ERP_incongr_low
+    keep loadincon outFiles listCongruency subjectFolder all_ERP_incongr_high all_ERP_incongr_med all_ERP_incongr_low
         
     disp(strcat('***   Loaded: sub', int2str(loadincon), '/', int2str(length(subjectFolder)), '   ***'))
     
@@ -342,6 +342,6 @@ cfg.layout      = 'mpi_customized_acticap64.mat';
 cfg.interactive = 'yes';
 cfg.showoutline = 'yes';
 cfg.ylim        = [-5 5];
-%ft_multiplotER(cfg, incList_grandAvg_incongr_high, incList_grandAvg_incongr_med, incList_grandAvg_incongr_low)
+%ft_multiplotER(cfg,grandAvg_congr, grandAvg_incongr)
 ft_multiplotER(cfg, conList_grandAvg_congr_high, conList_grandAvg_congr_med, conList_grandAvg_congr_low)
 
